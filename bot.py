@@ -1,10 +1,14 @@
+import asyncio
 import logging
+import sqlite3
 from typing import Tuple, Union
 
+from dependencies import Injector
 from telethon import TelegramClient, events
 from telethon.events import NewMessage
 from telethon.tl.types import User
 
+from channel import FetchNewPosts
 from config import *
 from database import UserContainer, ResourcesContainer
 
@@ -24,8 +28,34 @@ ch.setFormatter(formatter)
 logger.addHandler(fh)
 logger.addHandler(ch)
 
-bot = TelegramClient("bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
-client = TelegramClient("anon", API_ID, API_HASH).start()
+bot = TelegramClient("bot", API_ID, API_HASH)
+bot.start(bot_token=BOT_TOKEN)
+client = TelegramClient("anon", API_ID, API_HASH)
+client.start()
+
+
+class PostsContainer(Injector):
+    fetch = FetchNewPosts
+    db = ResourcesContainer
+    tg_client = client
+
+
+async def run():
+    while True:
+        try:
+            new_posts = await PostsContainer.fetch()
+            for user in UserContainer.iterate():
+                user_channels = user["subscriptions"]
+                for uc in user_channels:
+                    posts = new_posts.get(uc)
+                    if posts:
+                        for post in posts:
+                            await bot.send_message(user["_id"], post)
+
+            await asyncio.sleep(15)
+        except sqlite3.OperationalError as e:
+            logger.warning(e)
+            continue
 
 
 @bot.on(events.NewMessage(pattern="/start"))
@@ -106,5 +136,8 @@ async def list_channels(event: NewMessage.Event):
     channels = ResourcesContainer.get_resources_names(channel_ids)
     await event.respond(str(channels))
 
+
+loop = asyncio.get_event_loop()
+loop.create_task(run())
 
 bot.run_until_disconnected()
