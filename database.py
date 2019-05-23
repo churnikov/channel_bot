@@ -115,6 +115,7 @@ class UserContainer(Injector):
     subscribe = Subscribe
     unsubscribe = Unsubscribe
     list_subscriptions = ListSubscriptions
+    iterate = Iter
     mc = MongoClient()
     db_name = "channels_bot"
     collection_name = "users"
