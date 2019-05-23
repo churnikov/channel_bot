@@ -13,10 +13,10 @@ from config import *
 from database import UserContainer, ResourcesContainer
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 fh = logging.FileHandler("channels_bot.log")
-fh.setLevel(logging.DEBUG)
+fh.setLevel(logging.INFO)
 
 ch = logging.StreamHandler()
 ch.setLevel(logging.ERROR)
