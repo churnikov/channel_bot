@@ -48,7 +48,7 @@ class AddNewResource(ProcessResource):
 class UpdateRecentId(ProcessResource):
     def __call__(self, channel_id: int, post_id: int) -> None:
 
-        self.collection.update_one({"_id": channel_id}, {"$set", {"recent_post_id": post_id}})
+        self.collection.update_one({"_id": channel_id}, {"$set": {"recent_post_id": post_id}})
 
         logger.debug("Channels %d new recent id post is %d", channel_id, post_id)
 
@@ -59,6 +59,12 @@ class GetRecentId(ProcessResource):
         result = self.collection.find_one({"_id": channel_id}, {"recent_post_id": 1})
 
         return result["recent_post_id"]
+
+
+class Iter(ProcessResource):
+    def __call__(self):
+
+        return self.collection.find()
 
 
 class GetResourcesNames(ProcessResource):
@@ -98,6 +104,7 @@ class ResourcesContainer(Injector):
     update_recent_id = UpdateRecentId
     get_recent_id = GetRecentId
     get_resources_names = GetResourcesNames
+    iterate = Iter
     mc = MongoClient()
     db_name = "channels_bot"
     collection_name = "resources"
