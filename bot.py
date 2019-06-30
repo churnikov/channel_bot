@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import logging.config as logging_config
 import sqlite3
 from typing import Tuple, Union
 
@@ -12,21 +13,8 @@ from channel import FetchNewPosts
 from config import *
 from database import UserContainer, TelegramResourcesContainer
 
+logging_config.fileConfig("logger.config")
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-fh = logging.FileHandler("channels_bot.log")
-fh.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.ERROR)
-
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-
-logger.addHandler(fh)
-logger.addHandler(ch)
 
 bot = TelegramClient("bot", API_ID, API_HASH)
 bot.start(bot_token=BOT_TOKEN)
