@@ -9,9 +9,9 @@ from telethon import TelegramClient, events
 from telethon.events import NewMessage
 from telethon.tl.types import User
 
-from channel import FetchNewPosts
 from config import *
-from database import UserContainer, TelegramResourcesContainer
+from extractor import FetchNewTelegramPosts
+from loader import UserContainer, TelegramResourcesContainer
 
 logging_config.fileConfig("logger.config")
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ client.start()
 
 
 class PostsContainer(Injector):
-    fetch = FetchNewPosts
+    fetch = FetchNewTelegramPosts
     db = TelegramResourcesContainer
     tg_client = client
 
@@ -53,14 +53,16 @@ async def start(event: NewMessage.Event):
     if is_new:
         await event.respond(
             "Hello! I'm not yet another channels bot \n"
-            "Use /sub https://t.me/channel_name/79 to subscribe to channel\n"
+            "Use /sub telegram https://t.me/channel_name/79 to subscribe to telegram channel\n"
+            "Use /sub vk <group_name> to subscribe to vk group\n"
             "Use /unsub channel_name to unsubscribe from channel\n"
             "Use /list to list channels you are subscribed to"
         )
     else:
         await event.respond(
             "Hello again!\n"
-            "Use /sub https://t.me/channel_name/79 to subscribe to channel\n"
+            "Use /sub telegram https://t.me/channel_name/79 to subscribe to telegram channel\n"
+            "Use /sub vk <group_name> to subscribe to vk group\n"
             "Use /unsub channel_name to unsubscribe from channel\n"
             "Use /list to list channels you are subscribed to"
         )
@@ -79,21 +81,30 @@ def parse_post_url(post_url) -> Union[Tuple[str, int], Tuple[None, None]]:
 @bot.on(events.NewMessage(pattern="/sub"))
 async def subscribe(event: NewMessage.Event):
     user: User = event.message.sender
-    post_url = event.message.text.split()[1]
+    resource_name, post_url = event.message.text.split()[-2:]
 
-    channel_name, post_id = parse_post_url(post_url)
+    if resource_name == "telegram":
+        channel_name, post_id = parse_post_url(post_url)
 
-    if channel_name is None:
-        message = (f"Url you supplied was wrong, it should be like https://t.me/channel_name/79",)
+        if channel_name is None:
+            message = (
+                f"Url you supplied was wrong, it should be like https://t.me/channel_name/79",
+            )
+        else:
+            try:
+                channel_id = (await client.get_input_entity(channel_name)).channel_id
+                UserContainer.subscribe(user.id, channel_id, "telegram")
+                TelegramResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
+                message = f"You have subscribed to {channel_name}"
+            except Exception as e:
+                message = "What you have supplied is not a channel"
+                logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
+    elif resource_name == "vk":
+        # TODO
+        message = "VK is not supported right now"
+
     else:
-        try:
-            channel_id = (await client.get_input_entity(channel_name)).channel_id
-            UserContainer.subscribe(user.id, channel_id)
-            TelegramResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
-            message = f"You have subscribed to {channel_name}"
-        except Exception as e:
-            message = "What you have supplied is not a channel"
-            logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
+        message = f"{resource_name} is not supported"
 
     await event.respond(message)
 
@@ -101,17 +112,24 @@ async def subscribe(event: NewMessage.Event):
 @bot.on(events.NewMessage(pattern="/unsub"))
 async def unsubscribe(event: NewMessage.Event):
     user: User = event.message.sender
-    channel_name = event.message.text.split()[1]
+    query = event.message.text.split()
 
-    if channel_name is None:
-        message = (f"Url you supplied was wrong, it should be like https://t.me/channel_name/79",)
+    if len(query) == 1:
+        message = (
+            "You did not provide channel name to unsubscribe.\n"
+            "Command should be /unsub <resource_name> <channel_name>"
+        )
     else:
         try:
+            resource_name, channel_name = query[1], query[2]
             channel_id = (await client.get_input_entity(channel_name)).channel_id
-            UserContainer.unsubscribe(user.id, channel_id)
+            UserContainer.unsubscribe(user.id, channel_id, resource_name)
             message = f"You have unsubscribed from {channel_name}"
-        except AttributeError as e:
-            message = "What you have supplied is not a channel"
+        except Exception as e:
+            message = (
+                "What you have supplied is not a channel\n"
+                "Command should be /unsub <resource_name> <channel_name>"
+            )
             logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
 
     await event.respond(message)

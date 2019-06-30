@@ -61,7 +61,7 @@ class GetResourcesNames(ProcessResource):
 class AddNewUser(ProcessResource):
     def __call__(self, user_id: int) -> bool:
         try:
-            self.collection.insert_one({"_id": user_id, "subscriptions": []})
+            self.collection.insert_one({"_id": user_id, "resources": dict()})
             logger.info("Added new user %d", user_id)
             return True
         except DuplicateKeyError:
@@ -69,14 +69,18 @@ class AddNewUser(ProcessResource):
 
 
 class Subscribe(ProcessResource):
-    def __call__(self, user_id: int, channel_id: int) -> None:
-        self.collection.update_one({"_id": user_id}, {"$addToSet": {"subscriptions": channel_id}})
-        logger.info("User %d subscribed to %d", user_id, channel_id)
+    def __call__(self, user_id: int, channel_id: int, resource_name: str) -> None:
+        self.collection.update_one(
+            {"_id": user_id}, {"$addToSet": {f"resources.{resource_name}": channel_id}}
+        )
+        logger.info("User %d subscribed to %d in %s", user_id, channel_id, resource_name)
 
 
 class Unsubscribe(ProcessResource):
-    def __call__(self, user_id: int, channel_id: int) -> None:
-        self.collection.update_one({"_id": user_id}, {"$pull": {"subscriptions": channel_id}})
+    def __call__(self, user_id: int, channel_id: int, resource_name: str) -> None:
+        self.collection.update_one(
+            {"_id": user_id}, {"$pull": {f"resources.{resource_name}": channel_id}}
+        )
         logger.info("User %d unsubscribed from %d", user_id, channel_id)
 
 

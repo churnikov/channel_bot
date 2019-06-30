@@ -5,12 +5,12 @@ from telethon.sync import TelegramClient
 from telethon.tl.functions.channels import GetMessagesRequest
 from telethon.tl.types import MessageEmpty
 
-from database import TelegramResourcesContainer
+from loader import TelegramResourcesContainer, VKResourcesContainer
 
 logger = logging.getLogger(__name__)
 
 
-class FetchNewPosts:
+class FetchNewTelegramPosts:
     def __init__(self, db: TelegramResourcesContainer, tg_client: TelegramClient):
         self.db = db
         self.tg_client = tg_client
@@ -57,3 +57,8 @@ class FetchNewPosts:
         logger.info("Got %d new posts", n_new_posts)
 
         return all_new_posts
+
+
+class FetchNewVKPosts:
+    def __init__(self, db: VKResourcesContainer):
+        self.db = db
