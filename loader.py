@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Dict
 
 from dependencies import Injector
 from pymongo import MongoClient
@@ -85,8 +85,8 @@ class Unsubscribe(ProcessResource):
 
 
 class ListSubscriptions(ProcessResource):
-    def __call__(self, user_id: int) -> List[int]:
-        return self.collection.find_one({"_id": user_id}, {"subscriptions": 1})["subscriptions"]
+    def __call__(self, user_id: int) -> Dict[str, List[int]]:
+        return self.collection.find_one({"_id": user_id}, {"resources": 1})["resources"]
 
 
 class TelegramResourcesContainer(Injector):
