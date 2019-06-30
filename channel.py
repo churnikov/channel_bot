@@ -5,27 +5,13 @@ from telethon.sync import TelegramClient
 from telethon.tl.functions.channels import GetMessagesRequest
 from telethon.tl.types import MessageEmpty
 
-from database import ResourcesContainer
+from database import TelegramResourcesContainer
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-fh = logging.FileHandler("channels_bot.log")
-fh.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.ERROR)
-
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-
-logger.addHandler(fh)
-logger.addHandler(ch)
 
 
 class FetchNewPosts:
-    def __init__(self, db: ResourcesContainer, tg_client: TelegramClient):
+    def __init__(self, db: TelegramResourcesContainer, tg_client: TelegramClient):
         self.db = db
         self.tg_client = tg_client
 

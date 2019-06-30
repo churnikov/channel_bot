@@ -6,20 +6,6 @@ from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-fh = logging.FileHandler("channels_bot.log")
-fh.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.ERROR)
-
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-
-logger.addHandler(fh)
-logger.addHandler(ch)
 
 
 class ProcessResource:
@@ -32,17 +18,17 @@ class ProcessResource:
 
 
 class AddNewResource(ProcessResource):
-    def __call__(self, channel_name: str, channel_id: int, post_id: int) -> None:
+    def __call__(self, resource_name: str, channel_id: int, post_id: int) -> None:
         channel = self.collection.find_one({"_id": channel_id})
 
         if channel is None:
-            logger.info("Tracking channel %s", channel_name)
+            logger.info("Tracking channel %s", resource_name)
             self.collection.insert_one(
-                {"_id": channel_id, "name": channel_name, "recent_post_id": post_id}
+                {"_id": channel_id, "name": resource_name, "recent_post_id": post_id}
             )
-        elif channel["name"] != channel_name:
-            logger.info("Channel %s has been renamed to %s", channel["name"], channel_name)
-            self.collection.update_one({"_id": channel_id}, {"$set": {"name": channel_name}})
+        elif channel["name"] != resource_name:
+            logger.info("Channel %s has been renamed to %s", channel["name"], resource_name)
+            self.collection.update_one({"_id": channel_id}, {"$set": {"name": resource_name}})
 
 
 class UpdateRecentId(ProcessResource):
@@ -99,7 +85,7 @@ class ListSubscriptions(ProcessResource):
         return self.collection.find_one({"_id": user_id}, {"subscriptions": 1})["subscriptions"]
 
 
-class ResourcesContainer(Injector):
+class TelegramResourcesContainer(Injector):
     add_new_resource = AddNewResource
     update_recent_id = UpdateRecentId
     get_recent_id = GetRecentId
@@ -107,7 +93,18 @@ class ResourcesContainer(Injector):
     iterate = Iter
     mc = MongoClient()
     db_name = "channels_bot"
-    collection_name = "resources"
+    collection_name = "telegram_resources"
+
+
+class VKResourcesContainer(Injector):
+    add_new_resource = AddNewResource
+    update_recent_id = UpdateRecentId
+    get_recent_id = GetRecentId
+    get_resources_names = GetResourcesNames
+    iterate = Iter
+    mc = MongoClient()
+    db_name = "channels_bot"
+    collection_name = "vk_resources"
 
 
 class UserContainer(Injector):

@@ -10,7 +10,7 @@ from telethon.tl.types import User
 
 from channel import FetchNewPosts
 from config import *
-from database import UserContainer, ResourcesContainer
+from database import UserContainer, TelegramResourcesContainer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -36,7 +36,7 @@ client.start()
 
 class PostsContainer(Injector):
     fetch = FetchNewPosts
-    db = ResourcesContainer
+    db = TelegramResourcesContainer
     tg_client = client
 
 
@@ -101,7 +101,7 @@ async def subscribe(event: NewMessage.Event):
         try:
             channel_id = (await client.get_input_entity(channel_name)).channel_id
             UserContainer.subscribe(user.id, channel_id)
-            ResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
+            TelegramResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
             message = f"You have subscribed to {channel_name}"
         except Exception as e:
             message = "What you have supplied is not a channel"
@@ -133,7 +133,7 @@ async def unsubscribe(event: NewMessage.Event):
 async def list_channels(event: NewMessage.Event):
     user: User = event.message.sender
     channel_ids = UserContainer.list_subscriptions(user.id)
-    channels = ResourcesContainer.get_resources_names(channel_ids)
+    channels = TelegramResourcesContainer.get_resources_names(channel_ids)
     await event.respond(str(channels))
 
 
