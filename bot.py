@@ -1,32 +1,21 @@
 import asyncio
 import logging
+import logging.config as logging_config
+import pprint
 import sqlite3
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict, List
 
 from dependencies import Injector
 from telethon import TelegramClient, events
 from telethon.events import NewMessage
 from telethon.tl.types import User
 
-from channel import FetchNewPosts
 from config import *
-from database import UserContainer, ResourcesContainer
+from extractor import FetchNewTelegramPosts, FetchNewVKPosts
+from loader import UserContainer, TelegramResourcesContainer, VKResourcesContainer
 
+logging_config.fileConfig("logger.config")
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-fh = logging.FileHandler("channels_bot.log")
-fh.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.ERROR)
-
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-
-logger.addHandler(fh)
-logger.addHandler(ch)
 
 bot = TelegramClient("bot", API_ID, API_HASH)
 bot.start(bot_token=BOT_TOKEN)
@@ -34,23 +23,33 @@ client = TelegramClient("anon", API_ID, API_HASH)
 client.start()
 
 
-class PostsContainer(Injector):
-    fetch = FetchNewPosts
-    db = ResourcesContainer
+class TelegramPostsContainer(Injector):
+    fetch = FetchNewTelegramPosts
+    db = TelegramResourcesContainer
     tg_client = client
+
+
+class VkPostsContainer(Injector):
+    fetch = FetchNewVKPosts
+    db = VKResourcesContainer
+    vk_api = VK_API
 
 
 async def run():
     while True:
         try:
-            new_posts = await PostsContainer.fetch()
+            new_posts = {
+                "telegram": await TelegramPostsContainer.fetch(),
+                "vk": await VkPostsContainer.fetch(),
+            }
             for user in UserContainer.iterate():
-                user_channels = user["subscriptions"]
-                for uc in user_channels:
-                    posts = new_posts.get(uc)
-                    if posts:
-                        for post in posts:
-                            await bot.send_message(user["_id"], post)
+                for user_resource, user_channels in user["resources"].items():
+                    if user_channels:
+                        for uc in user_channels:
+                            posts = new_posts[user_resource].get(uc)
+                            if posts:
+                                for post in posts:
+                                    await bot.send_message(user["_id"], post)
 
             await asyncio.sleep(15)
         except sqlite3.OperationalError as e:
@@ -65,14 +64,16 @@ async def start(event: NewMessage.Event):
     if is_new:
         await event.respond(
             "Hello! I'm not yet another channels bot \n"
-            "Use /sub https://t.me/channel_name/79 to subscribe to channel\n"
+            "Use /sub telegram https://t.me/channel_name/79 to subscribe to telegram channel\n"
+            "Use /sub vk <group_name> to subscribe to vk group\n"
             "Use /unsub channel_name to unsubscribe from channel\n"
             "Use /list to list channels you are subscribed to"
         )
     else:
         await event.respond(
             "Hello again!\n"
-            "Use /sub https://t.me/channel_name/79 to subscribe to channel\n"
+            "Use /sub telegram https://t.me/channel_name/79 to subscribe to telegram channel\n"
+            "Use /sub vk <group_name> to subscribe to vk group\n"
             "Use /unsub channel_name to unsubscribe from channel\n"
             "Use /list to list channels you are subscribed to"
         )
@@ -88,24 +89,62 @@ def parse_post_url(post_url) -> Union[Tuple[str, int], Tuple[None, None]]:
         return None, None
 
 
+class WrongResourceTypeException(Exception):
+    pass
+
+
+async def channel_name2id(channel_name: str, resource_name: str) -> int:
+    if resource_name == "vk":
+        channel_id: int = VK_API.method(
+            "wall.get", {"domain": channel_name, "count": 1, "extended": 1}
+        )["groups"][0]["id"]
+    elif resource_name == "telegram":
+        channel_id: int = (await client.get_input_entity(channel_name)).channel_id
+    else:
+        raise WrongResourceTypeException
+
+    return channel_id
+
+
 @bot.on(events.NewMessage(pattern="/sub"))
 async def subscribe(event: NewMessage.Event):
     user: User = event.message.sender
-    post_url = event.message.text.split()[1]
+    resource_name, channel_info = event.message.text.split()[-2:]
 
-    channel_name, post_id = parse_post_url(post_url)
+    if resource_name == "telegram":
+        channel_name, post_id = parse_post_url(channel_info)
 
-    if channel_name is None:
-        message = (f"Url you supplied was wrong, it should be like https://t.me/channel_name/79",)
-    else:
+        if channel_name is None:
+            message = (
+                f"Url you supplied was wrong, it should be like https://t.me/channel_name/79",
+            )
+        else:
+            try:
+                channel_id = (await client.get_input_entity(channel_name)).channel_id
+                UserContainer.subscribe(user.id, channel_id, "telegram")
+                TelegramResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
+                message = f"You have subscribed to {channel_name}"
+            except Exception as e:
+                message = "What you have supplied is not a channel"
+                logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
+    elif resource_name == "vk":
+        channel_name: str = channel_info
+
         try:
-            channel_id = (await client.get_input_entity(channel_name)).channel_id
-            UserContainer.subscribe(user.id, channel_id)
-            ResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
+            data: dict = VK_API.method(
+                "wall.get", {"domain": channel_name, "count": 1, "extended": 1}
+            )
+            channel_id = data["groups"][0]["id"]
+            post_id = data["items"][0]["id"]
+            UserContainer.subscribe(user.id, channel_id, "vk")
+            VKResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
             message = f"You have subscribed to {channel_name}"
         except Exception as e:
-            message = "What you have supplied is not a channel"
+            message = "What you have supplied is not a vk group"
             logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
+
+    else:
+        message = f"{resource_name} is not supported"
 
     await event.respond(message)
 
@@ -113,17 +152,28 @@ async def subscribe(event: NewMessage.Event):
 @bot.on(events.NewMessage(pattern="/unsub"))
 async def unsubscribe(event: NewMessage.Event):
     user: User = event.message.sender
-    channel_name = event.message.text.split()[1]
+    query = event.message.text.split()
 
-    if channel_name is None:
-        message = (f"Url you supplied was wrong, it should be like https://t.me/channel_name/79",)
+    if len(query) == 1:
+        message = (
+            "You did not provide channel name to unsubscribe.\n"
+            "Command should be /unsub <resource_name> <channel_name>"
+        )
     else:
         try:
-            channel_id = (await client.get_input_entity(channel_name)).channel_id
-            UserContainer.unsubscribe(user.id, channel_id)
+            resource_name, channel_name = query[1], query[2]
             message = f"You have unsubscribed from {channel_name}"
-        except AttributeError as e:
-            message = "What you have supplied is not a channel"
+            if resource_name in ("vk", "telegram"):
+                channel_id = await channel_name2id(channel_name, resource_name)
+                UserContainer.unsubscribe(user.id, channel_id, resource_name)
+            else:
+                message = "Please type resource name as 'vk' or 'telegram'"
+
+        except Exception as e:
+            message = (
+                "What you have supplied is not a channel\n"
+                "Command should be /unsub <resource_name> <channel_name>"
+            )
             logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
 
     await event.respond(message)
@@ -132,9 +182,12 @@ async def unsubscribe(event: NewMessage.Event):
 @bot.on(events.NewMessage(pattern="/list"))
 async def list_channels(event: NewMessage.Event):
     user: User = event.message.sender
-    channel_ids = UserContainer.list_subscriptions(user.id)
-    channels = ResourcesContainer.get_resources_names(channel_ids)
-    await event.respond(str(channels))
+    resources: Dict[str, List[str]] = UserContainer.list_subscriptions(user.id)
+    result = {
+        "telegram": TelegramResourcesContainer.get_resources_names(resources.get("telegram", [])),
+        "vk": VKResourcesContainer.get_resources_names(resources.get("vk", [])),
+    }
+    await event.respond(pprint.pformat(result))
 
 
 loop = asyncio.get_event_loop()

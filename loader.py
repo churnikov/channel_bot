@@ -1,25 +1,11 @@
 import logging
-from typing import List
+from typing import List, Dict
 
 from dependencies import Injector
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-fh = logging.FileHandler("channels_bot.log")
-fh.setLevel(logging.INFO)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.ERROR)
-
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-
-logger.addHandler(fh)
-logger.addHandler(ch)
 
 
 class ProcessResource:
@@ -32,17 +18,17 @@ class ProcessResource:
 
 
 class AddNewResource(ProcessResource):
-    def __call__(self, channel_name: str, channel_id: int, post_id: int) -> None:
+    def __call__(self, resource_name: str, channel_id: int, post_id: int) -> None:
         channel = self.collection.find_one({"_id": channel_id})
 
         if channel is None:
-            logger.info("Tracking channel %s", channel_name)
+            logger.info("Tracking channel %s", resource_name)
             self.collection.insert_one(
-                {"_id": channel_id, "name": channel_name, "recent_post_id": post_id}
+                {"_id": channel_id, "name": resource_name, "recent_post_id": post_id}
             )
-        elif channel["name"] != channel_name:
-            logger.info("Channel %s has been renamed to %s", channel["name"], channel_name)
-            self.collection.update_one({"_id": channel_id}, {"$set": {"name": channel_name}})
+        elif channel["name"] != resource_name:
+            logger.info("Channel %s has been renamed to %s", channel["name"], resource_name)
+            self.collection.update_one({"_id": channel_id}, {"$set": {"name": resource_name}})
 
 
 class UpdateRecentId(ProcessResource):
@@ -75,7 +61,7 @@ class GetResourcesNames(ProcessResource):
 class AddNewUser(ProcessResource):
     def __call__(self, user_id: int) -> bool:
         try:
-            self.collection.insert_one({"_id": user_id, "subscriptions": []})
+            self.collection.insert_one({"_id": user_id, "resources": dict()})
             logger.info("Added new user %d", user_id)
             return True
         except DuplicateKeyError:
@@ -83,23 +69,27 @@ class AddNewUser(ProcessResource):
 
 
 class Subscribe(ProcessResource):
-    def __call__(self, user_id: int, channel_id: int) -> None:
-        self.collection.update_one({"_id": user_id}, {"$addToSet": {"subscriptions": channel_id}})
-        logger.info("User %d subscribed to %d", user_id, channel_id)
+    def __call__(self, user_id: int, channel_id: int, resource_name: str) -> None:
+        self.collection.update_one(
+            {"_id": user_id}, {"$addToSet": {f"resources.{resource_name}": channel_id}}
+        )
+        logger.info("User %d subscribed to %d in %s", user_id, channel_id, resource_name)
 
 
 class Unsubscribe(ProcessResource):
-    def __call__(self, user_id: int, channel_id: int) -> None:
-        self.collection.update_one({"_id": user_id}, {"$pull": {"subscriptions": channel_id}})
+    def __call__(self, user_id: int, channel_id: int, resource_name: str) -> None:
+        self.collection.update_one(
+            {"_id": user_id}, {"$pull": {f"resources.{resource_name}": channel_id}}
+        )
         logger.info("User %d unsubscribed from %d", user_id, channel_id)
 
 
 class ListSubscriptions(ProcessResource):
-    def __call__(self, user_id: int) -> List[int]:
-        return self.collection.find_one({"_id": user_id}, {"subscriptions": 1})["subscriptions"]
+    def __call__(self, user_id: int) -> Dict[str, List[int]]:
+        return self.collection.find_one({"_id": user_id}, {"resources": 1})["resources"]
 
 
-class ResourcesContainer(Injector):
+class TelegramResourcesContainer(Injector):
     add_new_resource = AddNewResource
     update_recent_id = UpdateRecentId
     get_recent_id = GetRecentId
@@ -107,7 +97,18 @@ class ResourcesContainer(Injector):
     iterate = Iter
     mc = MongoClient()
     db_name = "channels_bot"
-    collection_name = "resources"
+    collection_name = "telegram_resources"
+
+
+class VKResourcesContainer(Injector):
+    add_new_resource = AddNewResource
+    update_recent_id = UpdateRecentId
+    get_recent_id = GetRecentId
+    get_resources_names = GetResourcesNames
+    iterate = Iter
+    mc = MongoClient()
+    db_name = "channels_bot"
+    collection_name = "vk_resources"
 
 
 class UserContainer(Injector):
