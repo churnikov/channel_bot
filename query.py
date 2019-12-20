@@ -1,11 +1,8 @@
-import logging
-from typing import List, Dict
-
 from dependencies import Injector
+from loguru import logger
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
-
-logger = logging.getLogger(__name__)
+from typing import Dict, List
 
 
 class ProcessResource:
@@ -22,12 +19,12 @@ class AddNewResource(ProcessResource):
         channel = self.collection.find_one({"_id": channel_id})
 
         if channel is None:
-            logger.info("Tracking channel %s", resource_name)
+            logger.info("Tracking channel {}", resource_name)
             self.collection.insert_one(
                 {"_id": channel_id, "name": resource_name, "recent_post_id": post_id}
             )
         elif channel["name"] != resource_name:
-            logger.info("Channel %s has been renamed to %s", channel["name"], resource_name)
+            logger.info("Channel {} has been renamed to {}", channel["name"], resource_name)
             self.collection.update_one({"_id": channel_id}, {"$set": {"name": resource_name}})
 
 
@@ -36,7 +33,7 @@ class UpdateRecentId(ProcessResource):
 
         self.collection.update_one({"_id": channel_id}, {"$set": {"recent_post_id": post_id}})
 
-        logger.debug("Channels %d new recent id post is %d", channel_id, post_id)
+        logger.debug("Channels {} new recent id post is {}", channel_id, post_id)
 
 
 class GetRecentId(ProcessResource):
@@ -62,7 +59,7 @@ class AddNewUser(ProcessResource):
     def __call__(self, user_id: int) -> bool:
         try:
             self.collection.insert_one({"_id": user_id, "resources": dict()})
-            logger.info("Added new user %d", user_id)
+            logger.info("Added new user {}", user_id)
             return True
         except DuplicateKeyError:
             return False
@@ -73,7 +70,7 @@ class Subscribe(ProcessResource):
         self.collection.update_one(
             {"_id": user_id}, {"$addToSet": {f"resources.{resource_name}": channel_id}}
         )
-        logger.info("User %d subscribed to %d in %s", user_id, channel_id, resource_name)
+        logger.info("User {} subscribed to {} in {}", user_id, channel_id, resource_name)
 
 
 class Unsubscribe(ProcessResource):
@@ -81,7 +78,7 @@ class Unsubscribe(ProcessResource):
         self.collection.update_one(
             {"_id": user_id}, {"$pull": {f"resources.{resource_name}": channel_id}}
         )
-        logger.info("User %d unsubscribed from %d", user_id, channel_id)
+        logger.info("User {} unsubscribed from {}", user_id, channel_id)
 
 
 class ListSubscriptions(ProcessResource):

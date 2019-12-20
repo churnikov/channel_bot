@@ -1,21 +1,16 @@
 import asyncio
-import logging
-import logging.config as logging_config
-import pprint
 import sqlite3
-from typing import Tuple, Union, Dict, List
 
+import pprint
 from dependencies import Injector
 from telethon import TelegramClient, events
 from telethon.events import NewMessage
 from telethon.tl.types import User
+from typing import Dict, List, Tuple, Union
 
 from config import *
 from extractor import FetchNewTelegramPosts, FetchNewVKPosts
-from loader import UserContainer, TelegramResourcesContainer, VKResourcesContainer
-
-logging_config.fileConfig("logger.config")
-logger = logging.getLogger(__name__)
+from query import TelegramResourcesContainer, UserContainer, VKResourcesContainer
 
 bot = TelegramClient("bot", API_ID, API_HASH)
 bot.start(bot_token=BOT_TOKEN)
@@ -40,7 +35,8 @@ async def run():
         try:
             new_posts = {
                 "telegram": await TelegramPostsContainer.fetch(),
-                "vk": await VkPostsContainer.fetch(),
+                # "vk": await VkPostsContainer.fetch(),
+                "vk": dict(),
             }
             for user in UserContainer.iterate():
                 for user_resource, user_channels in user["resources"].items():

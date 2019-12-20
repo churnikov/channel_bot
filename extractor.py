@@ -1,12 +1,10 @@
-import logging
-from typing import Dict, List, Tuple
-
 from telethon.sync import TelegramClient
 from telethon.tl.functions.channels import GetMessagesRequest
 from telethon.tl.types import MessageEmpty
+from typing import Dict, List, Tuple
 from vk_api import VkApi
 
-from loader import TelegramResourcesContainer, VKResourcesContainer
+from query import TelegramResourcesContainer, VKResourcesContainer
 
 logger = logging.getLogger(__name__)
 
