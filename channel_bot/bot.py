@@ -1,26 +1,26 @@
 import asyncio
-import logging
-import logging.config as logging_config
 import pprint
 import sqlite3
-from typing import Tuple, Union, Dict, List
+from typing import Dict, List, Tuple, Union
 
 from dependencies import Injector
+from loguru import logger
 from telethon import TelegramClient, events
 from telethon.events import NewMessage
 from telethon.tl.types import User
 
+from channel_bot.db_query import TelegramResourcesContainer, UserContainer
+from channel_bot.remote_fetcher import FetchNewTelegramPosts
 from config import *
-from extractor import FetchNewTelegramPosts, FetchNewVKPosts
-from loader import UserContainer, TelegramResourcesContainer, VKResourcesContainer
 
-logging_config.fileConfig("logger.config")
-logger = logging.getLogger(__name__)
-
-bot = TelegramClient("bot", API_ID, API_HASH)
-bot.start(bot_token=BOT_TOKEN)
-client = TelegramClient("anon", API_ID, API_HASH)
+bot = TelegramClient("bot", TG_API_ID, TG_API_HASH)
+bot.start(bot_token=TG_BOT_TOKEN)
+client = TelegramClient("anon", TG_API_ID, TG_API_HASH)
 client.start()
+
+
+class WrongResourceTypeException(Exception):
+    pass
 
 
 class TelegramPostsContainer(Injector):
@@ -29,19 +29,10 @@ class TelegramPostsContainer(Injector):
     tg_client = client
 
 
-class VkPostsContainer(Injector):
-    fetch = FetchNewVKPosts
-    db = VKResourcesContainer
-    vk_api = VK_API
-
-
 async def run():
     while True:
         try:
-            new_posts = {
-                "telegram": await TelegramPostsContainer.fetch(),
-                "vk": await VkPostsContainer.fetch(),
-            }
+            new_posts = {"telegram": await TelegramPostsContainer.fetch()}
             for user in UserContainer.iterate():
                 for user_resource, user_channels in user["resources"].items():
                     if user_channels:
@@ -65,16 +56,14 @@ async def start(event: NewMessage.Event):
         await event.respond(
             "Hello! I'm not yet another channels bot \n"
             "Use /sub telegram https://t.me/channel_name/79 to subscribe to telegram channel\n"
-            "Use /sub vk <group_name> to subscribe to vk group\n"
-            "Use /unsub channel_name to unsubscribe from channel\n"
+            "Use /unsub <resource_name> <channel_name> to unsubscribe from channel\n"
             "Use /list to list channels you are subscribed to"
         )
     else:
         await event.respond(
             "Hello again!\n"
             "Use /sub telegram https://t.me/channel_name/79 to subscribe to telegram channel\n"
-            "Use /sub vk <group_name> to subscribe to vk group\n"
-            "Use /unsub channel_name to unsubscribe from channel\n"
+            "Use /unsub <resource_name> <channel_name> to unsubscribe from channel\n"
             "Use /list to list channels you are subscribed to"
         )
 
@@ -85,20 +74,12 @@ def parse_post_url(post_url) -> Union[Tuple[str, int], Tuple[None, None]]:
         post_id = int(post_id_str)
         return channel_name, post_id
     except ValueError:
-        logger.info("Could not process %s", post_url)
+        logger.info("Could not process {}", post_url)
         return None, None
 
 
-class WrongResourceTypeException(Exception):
-    pass
-
-
 async def channel_name2id(channel_name: str, resource_name: str) -> int:
-    if resource_name == "vk":
-        channel_id: int = VK_API.method(
-            "wall.get", {"domain": channel_name, "count": 1, "extended": 1}
-        )["groups"][0]["id"]
-    elif resource_name == "telegram":
+    if resource_name == "telegram":
         channel_id: int = (await client.get_input_entity(channel_name)).channel_id
     else:
         raise WrongResourceTypeException
@@ -108,6 +89,16 @@ async def channel_name2id(channel_name: str, resource_name: str) -> int:
 
 @bot.on(events.NewMessage(pattern="/sub"))
 async def subscribe(event: NewMessage.Event):
+    """
+    Subscribe user to remote resource.
+    
+    This handler expects 2 arguments: resource name (currently only telegram) and link to post from this resource.
+    
+    If resource is not supported, we will return message that we don't support this type of resource.
+    
+    :param event: 
+    :return: 
+    """
     user: User = event.message.sender
     resource_name, channel_info = event.message.text.split()[-2:]
 
@@ -126,23 +117,7 @@ async def subscribe(event: NewMessage.Event):
                 message = f"You have subscribed to {channel_name}"
             except Exception as e:
                 message = "What you have supplied is not a channel"
-                logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
-    elif resource_name == "vk":
-        channel_name: str = channel_info
-
-        try:
-            data: dict = VK_API.method(
-                "wall.get", {"domain": channel_name, "count": 1, "extended": 1}
-            )
-            channel_id = data["groups"][0]["id"]
-            post_id = data["items"][0]["id"]
-            UserContainer.subscribe(user.id, channel_id, "vk")
-            VKResourcesContainer.add_new_resource(channel_name, channel_id, post_id)
-            message = f"You have subscribed to {channel_name}"
-        except Exception as e:
-            message = "What you have supplied is not a vk group"
-            logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
-
+                logger.warning("User {} supplied wrong entity, {}", user.id, str(e))
     else:
         message = f"{resource_name} is not supported"
 
@@ -174,7 +149,7 @@ async def unsubscribe(event: NewMessage.Event):
                 "What you have supplied is not a channel\n"
                 "Command should be /unsub <resource_name> <channel_name>"
             )
-            logger.warning("User %d supplied wrong entity, %s", user.id, str(e))
+            logger.warning("User {} supplied wrong entity, {}", user.id, str(e))
 
     await event.respond(message)
 
@@ -184,8 +159,7 @@ async def list_channels(event: NewMessage.Event):
     user: User = event.message.sender
     resources: Dict[str, List[str]] = UserContainer.list_subscriptions(user.id)
     result = {
-        "telegram": TelegramResourcesContainer.get_resources_names(resources.get("telegram", [])),
-        "vk": VKResourcesContainer.get_resources_names(resources.get("vk", [])),
+        "telegram": TelegramResourcesContainer.get_resources_names(resources.get("telegram", []))
     }
     await event.respond(pprint.pformat(result))
 
