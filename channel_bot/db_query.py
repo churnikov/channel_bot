@@ -1,8 +1,9 @@
+from typing import Dict, List
+
 from dependencies import Injector
 from loguru import logger
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
-from typing import Dict, List
 
 
 class ProcessResource:
@@ -95,17 +96,6 @@ class TelegramResourcesContainer(Injector):
     mc = MongoClient()
     db_name = "channels_bot"
     collection_name = "telegram_resources"
-
-
-class VKResourcesContainer(Injector):
-    add_new_resource = AddNewResource
-    update_recent_id = UpdateRecentId
-    get_recent_id = GetRecentId
-    get_resources_names = GetResourcesNames
-    iterate = Iter
-    mc = MongoClient()
-    db_name = "channels_bot"
-    collection_name = "vk_resources"
 
 
 class UserContainer(Injector):

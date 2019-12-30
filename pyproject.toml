@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "channel_bot"
-version = "0.0.1"
+version = "0.1.0"
 description = "Telegram channels in one place"
 authors = ["Nikita Churikov <nikita@chur.ru>"]
 license = "MIT"
@@ -13,6 +13,11 @@ dependencies = "^0.15"
 pymongo = "^3.10.0"
 
 [tool.poetry.dev-dependencies]
+pytest = "^5.3.2"
+mongomock = "^3.18.0"
+
+[tool.poetry.scripts]
+run_channel_bot = 'channel_bot.main:main'
 
 [build-system]
 requires = ["poetry>=0.12"]
