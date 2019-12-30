@@ -164,7 +164,8 @@ async def list_channels(event: NewMessage.Event):
     await event.respond(pprint.pformat(result))
 
 
-loop = asyncio.get_event_loop()
-loop.create_task(run())
+def main():
+    loop = asyncio.get_event_loop()
+    loop.create_task(run())
 
-bot.run_until_disconnected()
+    bot.run_until_disconnected()
