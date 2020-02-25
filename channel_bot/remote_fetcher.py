@@ -19,12 +19,12 @@ class FetchNewTelegramPosts:
     async def get_new_channel_posts(self, channel_id: int, recent_id: int):
 
         try:
-            new_posts = self.tg_client.iter_messages(channel_id, min_id=recent_id)
+            new_posts = self.tg_client.iter_messages(channel_id, min_id=recent_id, limit=10)
 
             new_posts = [p.id async for p in new_posts if not isinstance(p, MessageEmpty)]
 
             if new_posts:
-                recent_id = new_posts[-1] + 1
+                recent_id = max(new_posts) + 1
                 new_posts = self.generate_post_url(channel_id, new_posts)
 
             return new_posts, recent_id
