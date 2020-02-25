@@ -57,7 +57,9 @@ async def start(event: NewMessage.Event):
             "Hello! I'm not yet another channels bot \n"
             "Use /sub telegram https://t.me/channel_name/79 to subscribe to telegram channel\n"
             "Use /unsub <resource_name> <channel_name> to unsubscribe from channel\n"
-            "Use /list to list channels you are subscribed to"
+            "Use /list to list channels you are subscribed to\n"
+            "Please, read privacy note on our [github page](https://github.com/churnik/channel_bot), it's about how "
+            "we collect data."
         )
     else:
         await event.respond(
