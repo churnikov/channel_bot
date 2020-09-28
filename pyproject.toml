@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "channel_bot"
-version = "0.1.0"
+version = "0.1.1"
 description = "Telegram channels in one place"
 authors = ["Nikita Churikov <nikita@chur.ru>"]
 license = "MIT"
