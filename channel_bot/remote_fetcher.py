@@ -1,6 +1,7 @@
 from typing import Dict, List
 
 from loguru import logger
+from telethon.errors import ChannelPrivateError
 from telethon.sync import TelegramClient
 from telethon.tl.types import MessageEmpty
 
@@ -30,6 +31,9 @@ class FetchNewTelegramPosts:
             return new_posts, recent_id
         except ValueError:
             logger.exception("Could not process {}", channel_id)
+            return [], recent_id
+        except ChannelPrivateError:
+            logger.error("Channel became private {}", channel_id)
             return [], recent_id
 
     async def __call__(self) -> Dict[str, List[str]]:
