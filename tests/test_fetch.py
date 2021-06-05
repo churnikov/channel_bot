@@ -6,12 +6,12 @@ from telethon import TelegramClient
 
 from channel_bot.db_query import TelegramResourcesContainer, UserContainer
 from channel_bot.remote_fetcher import FetchNewTelegramPosts
-from config import TG_API_HASH, TG_API_ID
+from config import settings
 
 
 @pytest.fixture()
 def tg_client():
-    with TelegramClient("anon", TG_API_ID, TG_API_HASH) as client:
+    with TelegramClient("anon", settings.tg_api_id, settings.tg_api_hash) as client:
         client.start()
         yield client
 

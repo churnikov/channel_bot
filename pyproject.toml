@@ -6,11 +6,12 @@ authors = ["Nikita Churikov <nikita@chur.ru>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 Telethon = "^1.10.9"
 loguru = "^0.4.0"
 dependencies = "^0.15"
 pymongo = "^3.10.0"
+pydantic = {extras = ["dotenv"], version = "^1.8.2"}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.3.2"

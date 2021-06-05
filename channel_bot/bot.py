@@ -6,16 +6,18 @@ from typing import Dict, List, Tuple, Union
 from dependencies import Injector
 from loguru import logger
 from telethon import TelegramClient, events
+from telethon.errors import UserIsBlockedError
 from telethon.events import NewMessage
 from telethon.tl.types import User
 
 from channel_bot.db_query import TelegramResourcesContainer, UserContainer
 from channel_bot.remote_fetcher import FetchNewTelegramPosts
-from config import *
+from channel_bot.user import send_message_to_user
+from config import settings
 
-bot = TelegramClient("bot", TG_API_ID, TG_API_HASH)
-bot.start(bot_token=TG_BOT_TOKEN)
-client = TelegramClient("anon", TG_API_ID, TG_API_HASH)
+bot = TelegramClient("bot", settings.tg_api_id, settings.tg_api_hash)
+bot.start(bot_token=settings.tg_bot_token)
+client = TelegramClient("anon", settings.tg_api_id, settings.tg_api_hash)
 client.start()
 
 
@@ -40,7 +42,7 @@ async def run():
                             posts = new_posts[user_resource].get(uc)
                             if posts:
                                 for post in posts:
-                                    await bot.send_message(user["_id"], post)
+                                    await send_message_to_user(bot, user, post)
 
             await asyncio.sleep(15)
         except sqlite3.OperationalError as e:
